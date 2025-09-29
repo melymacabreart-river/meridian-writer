@@ -112,26 +112,8 @@ export default function ChatPage() {
     setIsLoading(true);
 
     try {
-      // Get user's API keys (in production, decrypt from database)
-      const apiKeys = {
-        anthropic: localStorage.getItem('anthropic_key') || undefined,
-        openai: localStorage.getItem('openai_key') || undefined,
-        together: localStorage.getItem('together_key') || undefined
-      };
-
-      const aiService = new AIProviderService(apiKeys);
-      const memoryService = new MemoryService();
-
-      // Extract memories from user message
-      await memoryService.extractMemoriesFromMessage(
-        'user-123', // In production, get actual user ID
-        selectedCompanion.id,
-        inputValue,
-        'user'
-      );
-
       // Build conversation history for AI
-      const conversationMessages: AIMessage[] = messages
+      const conversationMessages = messages
         .filter(m => m.companionId === selectedCompanion.id)
         .slice(-10) // Keep last 10 messages for context
         .map(m => ({
@@ -144,35 +126,27 @@ export default function ChatPage() {
         content: inputValue
       });
 
-      // Generate enhanced system prompt with memory
-      const enhancedPrompt = await memoryService.generateSystemPromptWithMemory(
-        selectedCompanion.systemPrompt,
-        'user-123',
-        selectedCompanion.id
-      );
+      // Make API call to chat endpoint
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: conversationMessages,
+          companionId: selectedCompanion.id,
+          systemPrompt: selectedCompanion.systemPrompt
+        })
+      });
 
-      // Get AI response
-      const response = await aiService.generate(
-        'anthropic', // Default to Anthropic, make configurable
-        conversationMessages,
-        {
-          systemPrompt: enhancedPrompt,
-          temperature: 0.8,
-          maxTokens: 1000
-        }
-      );
+      if (!response.ok) {
+        throw new Error('Chat request failed');
+      }
 
-      // Extract memories from AI response
-      await memoryService.extractMemoriesFromMessage(
-        'user-123',
-        selectedCompanion.id,
-        response.content,
-        'assistant'
-      );
-
+      const data = await response.json();
       const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: response.content,
+        id: Date.now().toString() + '-assistant',
+        content: data.content,
         role: 'assistant',
         timestamp: new Date(),
         companionId: selectedCompanion.id
