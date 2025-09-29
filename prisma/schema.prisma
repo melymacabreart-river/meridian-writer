@@ -1,0 +1,182 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String?
+  avatar      String?
+  preferences Json?
+  apiKeys     Json?    // Encrypted API keys for different providers
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  documents     Document[]
+  conversations Conversation[]
+  companions    Companion[]
+  memories      Memory[]
+  apiUsage      ApiUsage[]
+  
+  @@map("users")
+}
+
+model Document {
+  id              String   @id @default(cuid())
+  title           String
+  content         String   @db.Text
+  type            String   @default("text")
+  genre           String?
+  isPublic        Boolean  @default(false)
+  wordCount       Int      @default(0)
+  characterNotes  Json?    // Store character details, plot points, etc.
+  projectMemory   Json?    // Long-term project context and continuity
+  writingStyle    Json?    // Learned user preferences for this document
+  storyBible      Json?    // Sudowrite-style story bible with characters, plot, world
+  contentEmbedding String? @db.Text // JSON string of vector embedding for content similarity
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  aiSessions  AISession[]
+  memories    Memory[]
+  
+  @@map("documents")
+}
+
+model Companion {
+  id               String   @id @default(cuid())
+  name             String
+  personality      String   @db.Text
+  avatar           String?
+  description      String?
+  systemPrompt     String   @db.Text
+  backstory        Json?    // Rich character background
+  traits           Json?    // Personality traits, quirks, preferences
+  relationshipData Json?    // How they relate to the user specifically
+  memoryStyle      String   @default("detailed") // how much they remember
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  conversations Conversation[]
+  messages      Message[]
+  memories      Memory[]
+
+  @@map("companions")
+}
+
+model Conversation {
+  id           String   @id @default(cuid())
+  title        String?
+  type         String   @default("chat") // chat, writing, roleplay, creative
+  context      Json?    // Current conversation context and mood
+  relationshipState Json? // How the relationship has evolved
+  isArchived   Boolean  @default(false)
+  lastActive   DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companionId String?
+  companion   Companion? @relation(fields: [companionId], references: [id], onDelete: SetNull)
+
+  messages    Message[]
+  memories    Memory[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id           String   @id @default(cuid())
+  content      String   @db.Text
+  role         String   // user, assistant, system
+  emotion      String?  // Detected or expressed emotion
+  importance   Int      @default(1) // 1-10 scale for memory retention
+  metadata     Json?    // Additional context, attachments, etc.
+  createdAt    DateTime @default(now())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  companionId    String?
+  companion      Companion? @relation(fields: [companionId], references: [id], onDelete: SetNull)
+
+  @@map("messages")
+}
+
+model Memory {
+  id          String   @id @default(cuid())
+  type        String   // personal, relationship, creative, factual, preference
+  content     String   @db.Text
+  embeddingData String? @db.Text // JSON string of vector embedding for semantic search
+  context     Json?    // Related context and connections
+  importance  Int      @default(1) // 1-10 scale
+  tags        String[] // Searchable tags
+  lastAccessed DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companionId    String?
+  companion      Companion? @relation(fields: [companionId], references: [id], onDelete: SetNull)
+
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  documentId     String?
+  document       Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@map("memories")
+}
+
+model AISession {
+  id           String   @id @default(cuid())
+  provider     String   // anthropic, together, openai
+  model        String
+  prompt       String   @db.Text
+  response     String?  @db.Text
+  tokensUsed   Int?
+  cost         Float?
+  sessionType  String   @default("writing") // writing, chat, creative, companion
+  quality      Int?     // User feedback 1-5
+  createdAt    DateTime @default(now())
+
+  documentId   String?
+  document     Document? @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("ai_sessions")
+}
+
+model ApiUsage {
+  id          String   @id @default(cuid())
+  provider    String   // anthropic, together, openai
+  tokensUsed  Int
+  cost        Float
+  requestType String   // writing, chat, completion, etc.
+  date        DateTime @default(now())
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("api_usage")
+}
