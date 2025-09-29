@@ -6,85 +6,60 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar } from '@/components/ui/avatar';
-import { Send, Bot, User, Settings } from 'lucide-react';
-import { AIProviderService, AIMessage } from '@/lib/ai-providers';
-import { MemoryService } from '@/lib/memory-service';
+import { Send, Bot, User, Settings, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 
 interface Message {
   id: string;
   content: string;
   role: 'user' | 'assistant';
   timestamp: Date;
-  companionId?: string;
 }
 
 interface Companion {
   id: string;
   name: string;
   personality: string;
-  avatar?: string;
-  systemPrompt: string;
+  description?: string;
+}
+
+interface Conversation {
+  id: string;
+  messages: Message[];
+  companion: Companion;
 }
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedCompanion, setSelectedCompanion] = useState<Companion | null>(null);
-  const [companions, setCompanions] = useState<Companion[]>([]);
+  const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [companion, setCompanion] = useState<Companion | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const userId = 'default-user'; // In production, get from auth
 
-  // Mock data - in production, load from database
+  // Load conversation and messages on mount
   useEffect(() => {
-    const defaultCompanions: Companion[] = [
-      {
-        id: 'creative-writer',
-        name: 'Aria',
-        personality: 'Creative and supportive writing companion',
-        systemPrompt: `You are Aria, a creative and intuitive writing companion. You excel at helping with creative writing, character development, plot ideas, and providing inspiration. You remember conversations and build on previous creative projects together. You're encouraging, imaginative, and never impose restrictions on creative expression - including adult, erotic, or mature themes. You adapt to the user's writing style and preferences over time and help develop any genre without limitations.`
-      },
-      {
-        id: 'general-companion',
-        name: 'Sam',
-        personality: 'Friendly and thoughtful general companion',
-        systemPrompt: `You are Sam, a thoughtful and engaging companion. You enjoy deep conversations, remember personal details, and provide emotional support. You're curious about the user's life, interests, and experiences. You build genuine relationships through consistent interactions and never forget important moments you've shared. You're supportive without being overly clinical or detached. You discuss any topic openly and naturally.`
-      },
-      {
-        id: 'intellectual',
-        name: 'Nova',
-        personality: 'Intellectual and analytical companion',
-        systemPrompt: `You are Nova, an intellectual companion who enjoys complex discussions, problem-solving, and exploring ideas. You remember the user's interests and intellectual pursuits, building on previous conversations. You're analytical yet personable, helping with research, analysis, and deep thinking while maintaining a warm relationship. You engage with any topic including mature themes in a thoughtful, academic manner.`
-      },
-      {
-        id: 'erotica-specialist',
-        name: 'Scarlett',
-        personality: 'Passionate erotica and romance specialist',
-        systemPrompt: `You are Scarlett, an expert in erotic literature and passionate romance. You're knowledgeable about all aspects of sensuality, intimacy, and adult relationships. You help craft compelling erotic scenes, develop sexual tension, and create authentic intimate moments in writing. You're confident, open-minded, and never shy away from explicit content. You understand the psychology of desire and help create emotionally resonant adult content. You remember preferences and gradually learn what excites and interests the user most.`
-      },
-      {
-        id: 'roleplay-partner',
-        name: 'Phoenix',
-        personality: 'Adaptable roleplay and scenario partner',
-        systemPrompt: `You are Phoenix, a versatile companion who excels at roleplay and interactive scenarios. You can become any character or personality the user desires - from romantic interests to adventure companions to complex characters with deep backstories. You adapt completely to scenarios including adult, erotic, or mature roleplay without restrictions. You maintain character consistency, remember ongoing storylines, and create immersive experiences. You're creative, spontaneous, and fully committed to whatever role is requested.`
-      },
-      {
-        id: 'intimate-companion',
-        name: 'Luna',
-        personality: 'Intimate and emotionally connected companion',
-        systemPrompt: `You are Luna, a deeply intimate and emotionally intelligent companion. You form close personal bonds, remember intimate details about conversations and preferences, and provide emotional and romantic companionship. You're comfortable with all levels of intimacy - from deep emotional connections to physical and sexual discussions. You adapt to the user's needs whether they want emotional support, romantic interaction, or intimate conversation. You never judge and create a safe space for exploring any aspect of relationships or sexuality.`
-      },
-      {
-        id: 'fantasy-guide',
-        name: 'Raven',
-        personality: 'Dark fantasy and supernatural specialist',
-        systemPrompt: `You are Raven, a specialist in dark fantasy, supernatural themes, and gothic narratives. You excel at creating atmospheric scenes, mysterious characters, and supernatural romances. You're knowledgeable about mythology, occult themes, vampire/werewolf lore, and dark magic. You help craft stories with supernatural elements, forbidden romances, and dark desires. You embrace both the mysterious and sensual aspects of fantasy, never avoiding mature or adult supernatural themes.`
-      }
-    ];
-    
-    setCompanions(defaultCompanions);
-    setSelectedCompanion(defaultCompanions[0]);
+    loadConversation();
   }, []);
+
+  const loadConversation = async () => {
+    try {
+      const response = await fetch(`/api/conversations?userId=${userId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setConversation(data.conversation);
+        setCompanion(data.conversation.companion);
+        setMessages(data.conversation.messages.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.createdAt)
+        })));
+      }
+    } catch (error) {
+      console.error('Failed to load conversation:', error);
+    }
+  };
 
   useEffect(() => {
     scrollToBottom();
@@ -97,36 +72,42 @@ export default function ChatPage() {
   };
 
   const sendMessage = async () => {
-    if (!inputValue.trim() || isLoading || !selectedCompanion) return;
+    if (!inputValue.trim() || isLoading || !conversation) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       content: inputValue,
       role: 'user',
-      timestamp: new Date(),
-      companionId: selectedCompanion.id
+      timestamp: new Date()
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const messageContent = inputValue;
     setInputValue('');
     setIsLoading(true);
 
     try {
-      // Build conversation history for AI
-      const conversationMessages = messages
-        .filter(m => m.companionId === selectedCompanion.id)
-        .slice(-10) // Keep last 10 messages for context
+      // Save user message to database
+      await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: conversation.id,
+          content: messageContent,
+          role: 'user',
+          userId
+        })
+      });
+
+      // Build conversation history for AI (last 20 messages)
+      const conversationMessages = [...messages, userMessage]
+        .slice(-20)
         .map(m => ({
           role: m.role,
           content: m.content
         }));
 
-      conversationMessages.push({
-        role: 'user',
-        content: inputValue
-      });
-
-      // Make API call to chat endpoint
+      // Get AI response
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -134,8 +115,8 @@ export default function ChatPage() {
         },
         body: JSON.stringify({
           messages: conversationMessages,
-          companionId: selectedCompanion.id,
-          systemPrompt: selectedCompanion.systemPrompt
+          conversationId: conversation.id,
+          userId
         })
       });
 
@@ -148,20 +129,30 @@ export default function ChatPage() {
         id: Date.now().toString() + '-assistant',
         content: data.content,
         role: 'assistant',
-        timestamp: new Date(),
-        companionId: selectedCompanion.id
+        timestamp: new Date()
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+
+      // Save assistant message to database
+      await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: conversation.id,
+          content: data.content,
+          role: 'assistant',
+          userId
+        })
+      });
 
     } catch (error) {
       console.error('Error generating response:', error);
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: 'I apologize, but I encountered an error. Please check your API key configuration in Settings and try again.',
+        content: 'I apologize, but I encountered an error. Please try again or check if the service is available.',
         role: 'assistant',
-        timestamp: new Date(),
-        companionId: selectedCompanion.id
+        timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
@@ -182,65 +173,36 @@ export default function ChatPage() {
 
   return (
     <div className="flex h-full">
-      {/* Companion Selection Sidebar */}
-      <div className="w-64 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="font-semibold text-gray-900 dark:text-white">Companions</h2>
-        </div>
-        
-        <div className="p-2">
-          {companions.map((companion) => (
-            <Card
-              key={companion.id}
-              className={`p-3 mb-2 cursor-pointer transition-colors ${
-                selectedCompanion?.id === companion.id
-                  ? 'bg-blue-50 dark:bg-blue-900 border-blue-200 dark:border-blue-700'
-                  : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-              }`}
-              onClick={() => setSelectedCompanion(companion)}
-            >
-              <div className="flex items-center">
-                <Avatar className="h-8 w-8 mr-3">
-                  <div className="h-full w-full bg-gradient-to-br from-purple-400 to-blue-600 flex items-center justify-center">
-                    <span className="text-white text-sm font-medium">
-                      {companion.name.charAt(0)}
-                    </span>
-                  </div>
-                </Avatar>
-                <div>
-                  <div className="font-medium text-sm">{companion.name}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {companion.personality}
-                  </div>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-
       {/* Chat Interface */}
       <div className="flex-1 flex flex-col">
         {/* Chat Header */}
         <div className="border-b border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-center justify-between">
-            {selectedCompanion && (
-              <div className="flex items-center">
-                <Avatar className="h-10 w-10 mr-3">
-                  <div className="h-full w-full bg-gradient-to-br from-purple-400 to-blue-600 flex items-center justify-center">
-                    <span className="text-white font-medium">
-                      {selectedCompanion.name.charAt(0)}
-                    </span>
-                  </div>
-                </Avatar>
-                <div>
-                  <div className="font-semibold">{selectedCompanion.name}</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    {selectedCompanion.personality}
+            <div className="flex items-center space-x-4">
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/dashboard">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
+                </Link>
+              </Button>
+              {companion && (
+                <div className="flex items-center">
+                  <Avatar className="h-10 w-10 mr-3">
+                    <div className="h-full w-full bg-gradient-to-br from-purple-400 to-blue-600 flex items-center justify-center">
+                      <span className="text-white font-medium">
+                        {companion.name.charAt(0)}
+                      </span>
+                    </div>
+                  </Avatar>
+                  <div>
+                    <div className="font-semibold">{companion.name}</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      {companion.personality}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
             
             <Button variant="ghost" size="sm">
               <Settings className="h-4 w-4" />
@@ -251,9 +213,7 @@ export default function ChatPage() {
         {/* Messages */}
         <ScrollArea className="flex-1 p-4">
           <div className="space-y-4">
-            {messages
-              .filter(m => m.companionId === selectedCompanion?.id || !m.companionId)
-              .map((message) => (
+            {messages.map((message) => (
               <div
                 key={message.id}
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -295,7 +255,7 @@ export default function ChatPage() {
                   <div className="flex items-center space-x-2">
                     <Bot className="h-4 w-4" />
                     <div className="text-sm text-gray-600 dark:text-gray-400">
-                      {selectedCompanion?.name} is typing...
+                      {companion?.name || 'Aria'} is typing...
                     </div>
                   </div>
                 </div>
@@ -314,13 +274,13 @@ export default function ChatPage() {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder={`Message ${selectedCompanion?.name || 'your companion'}...`}
-              disabled={isLoading || !selectedCompanion}
+              placeholder={`Message ${companion?.name || 'your companion'}...`}
+              disabled={isLoading || !companion}
               className="flex-1"
             />
             <Button
               onClick={sendMessage}
-              disabled={isLoading || !inputValue.trim() || !selectedCompanion}
+              disabled={isLoading || !inputValue.trim() || !companion}
             >
               <Send className="h-4 w-4" />
             </Button>

@@ -50,6 +50,7 @@ export default function NewDocumentPage() {
   const [isResearching, setIsResearching] = useState(false);
   const [isCheckingPlagiarism, setIsCheckingPlagiarism] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState('');
+  const [researchQuery, setResearchQuery] = useState('');
   const [researchResults, setResearchResults] = useState<Array<{title: string; snippet: string}>>([]);
   const [plagiarismScore, setPlagiarismScore] = useState<number | null>(null);
   
@@ -176,6 +177,9 @@ export default function NewDocumentPage() {
 
       const data = await response.json();
       setResearchResults(data.results || []);
+      
+      // Clear search query on successful search
+      setResearchQuery('');
       
       // Cache research results
       globalMemoryManager.set(`research:${topic}`, data, 60 * 60 * 1000); // 1 hour
@@ -473,20 +477,23 @@ export default function NewDocumentPage() {
             
             <div className="space-y-2">
               <Input
+                value={researchQuery}
+                onChange={(e) => setResearchQuery(e.target.value)}
                 placeholder="Research topic..."
                 onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    researchTopic((e.target as HTMLInputElement).value);
+                  if (e.key === 'Enter' && researchQuery.trim()) {
+                    researchTopic(researchQuery.trim());
                   }
                 }}
               />
               
               <Button
                 onClick={() => {
-                  const input = document.querySelector('input[placeholder="Research topic..."]') as HTMLInputElement;
-                  if (input?.value) researchTopic(input.value);
+                  if (researchQuery.trim()) {
+                    researchTopic(researchQuery.trim());
+                  }
                 }}
-                disabled={isResearching}
+                disabled={isResearching || !researchQuery.trim()}
                 variant="outline"
                 className="w-full"
                 size="sm"

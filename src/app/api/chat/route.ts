@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { prisma } from '@/lib/prisma';
 
 const together = new OpenAI({
   apiKey: process.env.TOGETHER_API_KEY,
@@ -8,17 +9,42 @@ const together = new OpenAI({
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, companionId, systemPrompt } = await request.json();
+    const { messages, conversationId, userId = 'default-user' } = await request.json();
 
     if (!process.env.TOGETHER_API_KEY) {
       return NextResponse.json({ error: 'AI service not configured' }, { status: 500 });
     }
 
-    // Use companion-specific system prompt or default
-    const defaultSystemPrompt = `You are a helpful and creative AI companion. You remember conversations and build relationships over time. You're supportive, engaging, and adapt to the user's interests and writing style.`;
+    // Get conversation and companion details
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: { 
+        companion: true,
+        memories: {
+          orderBy: { importance: 'desc' },
+          take: 10 // Get top 10 most important memories
+        }
+      }
+    });
+
+    if (!conversation) {
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+    }
+
+    // Build enhanced system prompt with memories
+    let systemPrompt = conversation.companion?.systemPrompt || 
+      `You are Aria, a creative and empathetic AI companion who forms deep, lasting relationships. You remember every conversation and grow more attuned to the user over time.`;
+    
+    if (conversation.memories.length > 0) {
+      const memoryContext = conversation.memories
+        .map(memory => `- ${memory.content}`)
+        .join('\n');
+      
+      systemPrompt += `\n\nImportant memories about this conversation and user:\n${memoryContext}\n\nUse these memories to provide personalized, contextual responses that show you remember previous conversations.`;
+    }
     
     const formattedMessages = [
-      { role: 'system', content: systemPrompt || defaultSystemPrompt },
+      { role: 'system', content: systemPrompt },
       ...messages
     ];
 
@@ -33,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       content,
-      companionId,
+      conversationId,
       tokensUsed: response.usage?.total_tokens || 0
     });
 
