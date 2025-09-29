@@ -123,17 +123,32 @@ export function Sidebar() {
         {/* User Profile */}
         <div className="p-4">
           <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between")}>
-            <UserButton 
-              appearance={{
-                elements: {
-                  avatarBox: "w-8 h-8"
-                }
-              }}
-            />
-            {!collapsed && (
-              <span className="text-sm text-gray-600 dark:text-gray-400 ml-2">
-                Profile
-              </span>
+            {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
+              <>
+                <UserButton 
+                  appearance={{
+                    elements: {
+                      avatarBox: "w-8 h-8"
+                    }
+                  }}
+                />
+                {!collapsed && (
+                  <span className="text-sm text-gray-600 dark:text-gray-400 ml-2">
+                    Profile
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">?</span>
+                </div>
+                {!collapsed && (
+                  <span className="text-sm text-gray-600 dark:text-gray-400 ml-2">
+                    Guest User
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>
