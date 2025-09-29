@@ -16,8 +16,10 @@ import {
   Home,
   Plus,
   ChevronLeft,
-  Menu
+  Menu,
+  LogOut
 } from 'lucide-react';
+import { useAuth } from '@/components/auth-guard';
 import { cn } from '@/lib/utils';
 
 const navigation = [
@@ -31,6 +33,7 @@ const navigation = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+  const { logout } = useAuth();
 
   return (
     <>
@@ -121,7 +124,7 @@ export function Sidebar() {
         <Separator />
 
         {/* User Profile */}
-        <div className="p-4">
+        <div className="p-4 space-y-3">
           <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between")}>
             {process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ? (
               <>
@@ -140,17 +143,33 @@ export function Sidebar() {
               </>
             ) : (
               <>
-                <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">?</span>
+                <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                  <span className="text-sm font-medium text-blue-600 dark:text-blue-400">📝</span>
                 </div>
                 {!collapsed && (
                   <span className="text-sm text-gray-600 dark:text-gray-400 ml-2">
-                    Guest User
+                    Writer
                   </span>
                 )}
               </>
             )}
           </div>
+          
+          {/* Logout Button for Simple Auth */}
+          {!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={logout}
+              className={cn(
+                "w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20",
+                collapsed ? "px-2" : "px-3"
+              )}
+            >
+              <LogOut className="h-4 w-4" />
+              {!collapsed && <span className="ml-2">Logout</span>}
+            </Button>
+          )}
         </div>
       </div>
 
