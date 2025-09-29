@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { 
-  Save, 
+  // Save, 
   Download, 
   Search, 
   Sparkles, 
@@ -42,7 +42,7 @@ export default function NewDocumentPage() {
   const [isResearching, setIsResearching] = useState(false);
   const [isCheckingPlagiarism, setIsCheckingPlagiarism] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState('');
-  const [researchResults, setResearchResults] = useState<any[]>([]);
+  const [researchResults, setResearchResults] = useState<Array<{title: string; snippet: string}>>([]);
   const [plagiarismScore, setPlagiarismScore] = useState<number | null>(null);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
