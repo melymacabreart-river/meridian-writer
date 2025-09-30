@@ -17,13 +17,20 @@ export const metadata: Metadata = {
   title: "AI Writer & Companion",
   description: "Your personal AI writing assistant and companion",
   manifest: "/manifest.json",
-  themeColor: "#000000",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "AI Writer",
   },
+};
+
+// Separate viewport configuration to avoid build issues
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: 'no',
+  themeColor: '#000000',
 };
 
 import { AuthGuard } from '@/components/auth-guard';
@@ -34,10 +41,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  
+  // Validate Clerk key format - should start with pk_test_ or pk_live_
+  const isValidClerkKey = publishableKey && 
+    (publishableKey.startsWith('pk_test_') || publishableKey.startsWith('pk_live_')) &&
+    publishableKey.length > 20; // Basic length check
 
-  if (publishableKey) {
+  if (isValidClerkKey) {
     return (
-      <ClerkProvider>
+      <ClerkProvider publishableKey={publishableKey}>
         <html lang="en">
           <body
             className={`${geistSans.variable} ${geistMono.variable} antialiased`}
@@ -49,7 +61,7 @@ export default function RootLayout({
     );
   }
 
-  // Simple password protection when Clerk is not configured
+  // Simple password protection when Clerk is not configured or invalid
   return (
     <html lang="en">
       <body
