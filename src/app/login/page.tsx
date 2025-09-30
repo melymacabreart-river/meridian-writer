@@ -104,6 +104,18 @@ export default function LoginPage() {
         </div>
 
         <div className="mt-6 text-center">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => {
+              localStorage.clear();
+              sessionStorage.clear();
+              window.location.reload();
+            }}
+            className="mb-4"
+          >
+            🔄 Reset Login Session
+          </Button>
           <p className="text-xs text-gray-500 dark:text-gray-400">
             🔒 Your work is protected • 💾 AI companion memory persists • 📚 Story bible saved
           </p>
